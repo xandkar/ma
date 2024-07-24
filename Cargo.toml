@@ -1,6 +1,12 @@
 [package]
 name = "ma"
 version = "0.0.0"
+description = "Mail archive(r)"
+repository = "https://github.com/xandkar/ma"
+keywords = ["mail", "email", "archive", "archiver", "database"]
+categories = ["email", "command-line-utilities"]
+license-file = "LICENSE"
+readme = "README.md"
 edition = "2021"
 
 [dependencies]
