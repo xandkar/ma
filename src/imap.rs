@@ -58,7 +58,7 @@ impl Session {
     pub async fn new(account: &cfg::ImapAccount) -> Result<Self> {
         let mut session = connect(account).await?;
         let capabilities = session.capabilities().await?;
-        tracing::info!(
+        tracing::debug!(
             ?account,
             capabilities = ?capabilities.iter().collect::<Vec<&Capability>>(),
             "New IMAP session."
@@ -71,7 +71,7 @@ impl Session {
             tracing::error!(?error, "Failed to examine mailbox.");
             error
         })?;
-        tracing::info!(?mailbox, exists = meta.exists, "Switched mailbox.");
+        tracing::debug!(?mailbox, exists = meta.exists, "Switched mailbox.");
         Ok(meta)
     }
 
