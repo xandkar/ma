@@ -1,7 +1,12 @@
-use std::{collections::HashMap, path::Path};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+};
 
 use anyhow::Context;
 use tokio::fs;
+
+const FILE_NAME: &str = "ma.toml";
 
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
 pub struct ImapAccount {
@@ -41,6 +46,7 @@ pub struct Imap {
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct Cfg {
     pub imap: Imap,
+    pub obj_dir: PathBuf,
 }
 
 impl Cfg {
@@ -68,15 +74,16 @@ impl Cfg {
         Ok(())
     }
 
-    pub async fn read_or_init(path: &Path) -> anyhow::Result<Self> {
+    pub async fn read_or_init() -> anyhow::Result<Self> {
+        let path = PathBuf::from(FILE_NAME);
         if path.try_exists()? {
-            let data = std::fs::read_to_string(path).with_context(|| {
-                format!("Failed to read from path: {:?}", path)
+            let data = std::fs::read_to_string(&path).with_context(|| {
+                format!("Failed to read from path: {:?}", &path)
             })?;
             let cfg = toml::from_str(&data).with_context(|| {
                 format!(
                     "Failed to parse config data which was read from: {:?}",
-                    path
+                    &path
                 )
             })?;
             tracing::debug!(?path, ?cfg, "Got cfg from file.");
@@ -84,7 +91,7 @@ impl Cfg {
         } else {
             let selph: Self = Self::default();
             tracing::info!(?path, cfg = ?selph, "Path not found. Using defaults.");
-            selph.to_file(path).await?;
+            selph.to_file(&path).await?;
             Ok(selph)
         }
     }
@@ -99,6 +106,7 @@ impl Default for Cfg {
                     ImapAccount::default(),
                 )]),
             },
+            obj_dir: PathBuf::from("dump"),
         }
     }
 }

@@ -1,4 +1,5 @@
 pub mod cfg;
+pub mod cmd;
 pub mod file;
 pub mod hash;
 pub mod imap;
