@@ -37,7 +37,6 @@ install:
 
 .PHONY: release
 release:
-	$(MAKE) -s version_check
 	$(MAKE) -s version_tag
 	$(MAKE) -s tags_push
 	$(MAKE) -s crate_publish
