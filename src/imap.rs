@@ -84,7 +84,7 @@ impl Session {
             self.session.list(reference_name, mailbox_pattern).await?;
         let names = names.filter_map(|result| async {
             if let Err(error) = &result {
-                // TODO Should we terminate the stream of keep going/trying?
+                // TODO Should we terminate the stream or keep going/trying?
                 tracing::error!(?error, "Failed name.");
             }
             result.ok().map(|name| name.name().to_string())
@@ -103,7 +103,7 @@ impl Session {
         let msgs = fetches.filter_map(move |result| async {
             let mailbox = mailbox.to_string();
             if let Err(error) = &result {
-                // TODO Should we terminate the stream of keep going/trying?
+                // TODO Should we terminate the stream or keep going/trying?
                 tracing::error!(?mailbox, ?error, "Failed fetch.");
             }
             result.ok().and_then(|f| {
