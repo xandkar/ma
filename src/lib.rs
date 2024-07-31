@@ -1,6 +1,8 @@
+pub mod archive;
 pub mod cfg;
 pub mod cmd;
 pub mod file;
+pub mod fs;
 pub mod hash;
 pub mod imap;
 

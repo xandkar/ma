@@ -22,6 +22,9 @@ struct Cli {
 enum Cmd {
     /// Download all messages from all mailboxes from all accounts.
     Dump(ma::cmd::dump::Cmd),
+
+    /// Insert dumped messages into database.
+    Insert(ma::cmd::insert::Cmd),
 }
 
 #[tokio::main]
@@ -35,6 +38,9 @@ async fn main() -> anyhow::Result<()> {
     match cli.command {
         Cmd::Dump(cmd) => {
             cmd.run(&cfg).instrument(info_span!("dump")).await?
+        }
+        Cmd::Insert(cmd) => {
+            cmd.run(&cfg).instrument(info_span!("insert")).await?
         }
     }
     Ok(())

@@ -47,6 +47,7 @@ pub struct Imap {
 pub struct Cfg {
     pub imap: Imap,
     pub obj_dir: PathBuf,
+    pub db_dir: PathBuf,
 }
 
 impl Cfg {
@@ -107,6 +108,7 @@ impl Default for Cfg {
                 )]),
             },
             obj_dir: PathBuf::from("dump"),
+            db_dir: PathBuf::from("db"),
         }
     }
 }

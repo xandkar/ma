@@ -1,17 +1,24 @@
 use std::{
     fs,
-    io::{BufWriter, Write},
+    io::{BufWriter, Read, Write},
     path::{Path, PathBuf},
 };
 
-use anyhow::Result;
-use flate2::write::GzEncoder;
+use flate2::{read::GzDecoder, write::GzEncoder};
+
+pub fn read_gz<P: AsRef<Path>>(path: P) -> anyhow::Result<Vec<u8>> {
+    let contents = fs::read(path)?;
+    let mut decoder = GzDecoder::new(&contents[..]);
+    let mut buff = Vec::new();
+    decoder.read_to_end(&mut buff)?;
+    Ok(buff)
+}
 
 /// XXX Appends ".gz" to the given path.
 pub fn write_as_gz<P: AsRef<Path>, D: AsRef<[u8]>>(
     path: P,
     data: D,
-) -> Result<()> {
+) -> anyhow::Result<()> {
     let path = path_extension_append(path, "gz");
     if let Some(parent) = &path.parent() {
         fs::create_dir_all(parent)?;
