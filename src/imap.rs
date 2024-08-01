@@ -27,6 +27,9 @@ pub enum Error {
     #[error("FetchInvalidMissingUid")]
     FetchInvalidMissingUid,
 
+    #[error("UidIsZero")]
+    UidIsZero,
+
     #[error("Idle event channel hung-up")]
     IdleEventChannelHungUp,
 
@@ -93,13 +96,37 @@ impl Session {
     }
 
     #[tracing::instrument(skip_all)]
-    pub async fn fetch_msgs<'a>(
+    pub async fn fetch_msgs_all<'a>(
         &'a mut self,
         mailbox: &'a str,
     ) -> Result<(Meta, impl Stream<Item = (u32, Vec<u8>)> + 'a)> {
-        tracing::debug!(?mailbox, "Fetching all messages.");
+        self.fetch_msgs(mailbox, None).await
+    }
+
+    #[tracing::instrument(skip_all)]
+    pub async fn fetch_msgs_from<'a>(
+        &'a mut self,
+        mailbox: &'a str,
+        initial_uid: u32,
+    ) -> Result<(Meta, impl Stream<Item = (u32, Vec<u8>)> + 'a)> {
+        self.fetch_msgs(mailbox, Some(initial_uid)).await
+    }
+
+    #[tracing::instrument(skip_all)]
+    pub async fn fetch_msgs<'a>(
+        &'a mut self,
+        mailbox: &'a str,
+        beginning_with: Option<u32>,
+    ) -> Result<(Meta, impl Stream<Item = (u32, Vec<u8>)> + 'a)> {
+        if let Some(0) = beginning_with {
+            return Err(Error::UidIsZero);
+        }
+        tracing::debug!(?mailbox, ?beginning_with, "Fetching messages.");
         let meta: Meta = self.examine(mailbox).await?;
-        let fetches = self.session.fetch("1:*", "(RFC822 UID)").await?;
+        let lo = beginning_with.unwrap_or(1);
+        let hi = "*";
+        let range = format!("{}:{}", lo, hi);
+        let fetches = self.session.fetch(&range, "(RFC822 UID)").await?;
         let msgs = fetches.filter_map(move |result| async {
             let mailbox = mailbox.to_string();
             if let Err(error) = &result {

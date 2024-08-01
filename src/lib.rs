@@ -5,6 +5,7 @@ pub mod file;
 pub mod fs;
 pub mod hash;
 pub mod imap;
+pub mod state;
 
 pub fn tracing_init(level: Option<tracing::Level>) -> anyhow::Result<()> {
     use tracing_subscriber::{fmt, layer::SubscriberExt, EnvFilter, Layer};

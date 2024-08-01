@@ -73,44 +73,48 @@ impl Archive {
         Ok(bodies.pop())
     }
 
+    pub async fn insert(&self, hash: &str, raw: &[u8]) -> anyhow::Result<()> {
+        let msg = Msg {
+            hash: hash.to_string(),
+            raw: raw.to_vec(),
+        };
+        let mut tx = self.pool.begin().await?;
+        tx = tx_insert(tx, &msg).await?;
+        tx.commit().await?;
+        Ok(())
+    }
+
     pub async fn insert_dumped(&self, cfg: &Cfg) -> anyhow::Result<()> {
         let mut tx = self.pool.begin().await?;
         // TODO Parallelize:
         //      - task to par_iter (rayon) from fs and write to channel
         //      - task to read from channel and write to db
         for msg in dumped(&cfg.obj_dir) {
-            tx = tx_insert_msg(tx, &msg).await?;
-            match mailparse::parse_headers(&msg.raw[..]) {
-                Err(error) => {
-                    tracing::error!(
-                        msg = msg.hash,
-                        ?error,
-                        "Failed to parse headers."
-                    );
-                }
-                Ok((headers, _)) => {
-                    for header in headers {
-                        tx = tx_insert_header(
-                            tx,
-                            &msg.hash,
-                            &header.get_key(),
-                            &header.get_value(),
-                        )
-                        .await?;
-                    }
-                }
-            }
-
-            if let Some(body_text) = mail_parser::MessageParser::default()
-                .parse(&msg.raw[..])
-                .and_then(|m| m.body_text(0).map(|b| b.to_string()))
-            {
-                tx = tx_insert_body(tx, &msg.hash, &body_text).await?;
-            }
+            tx = tx_insert(tx, &msg).await?;
         }
         tx.commit().await?;
         Ok(())
     }
+}
+
+async fn tx_insert<'tx>(
+    mut tx: sqlx::Transaction<'tx, sqlx::Sqlite>,
+    msg: &Msg,
+) -> anyhow::Result<sqlx::Transaction<'tx, sqlx::Sqlite>> {
+    tx = tx_insert_msg(tx, &msg).await?;
+    let (headers, _) = mailparse::parse_headers(&msg.raw[..])?;
+    for header in headers {
+        let name = header.get_key();
+        let value = header.get_value();
+        tx = tx_insert_header(tx, &msg.hash, &name, &value).await?;
+    }
+    if let Some(body_text) = mail_parser::MessageParser::default()
+        .parse(&msg.raw[..])
+        .and_then(|m| m.body_text(0).map(|b| b.to_string()))
+    {
+        tx = tx_insert_body(tx, &msg.hash, &body_text).await?;
+    }
+    Ok(tx)
 }
 
 async fn tx_insert_msg<'tx>(
