@@ -108,13 +108,15 @@ impl DataBase {
         Ok(count)
     }
 
-    pub async fn fetch_messages<'a>(
+    #[must_use]
+    pub fn fetch_messages<'a>(
         &'a self,
     ) -> Pin<Box<dyn Stream<Item = sqlx::Result<Msg>> + 'a>> {
         sqlx::query_as("SELECT * FROM messages").fetch(&self.pool)
     }
 
-    pub async fn fetch_headers<'a>(
+    #[must_use]
+    pub fn fetch_headers<'a>(
         &'a self,
         msg_hash: &'a str,
     ) -> Pin<Box<dyn Stream<Item = sqlx::Result<Header>> + 'a>> {
@@ -157,7 +159,7 @@ impl DataBase {
             fs::create_dir_all(obj_dir).await?;
         }
         let msgs_count = self.count_messages().await?;
-        let mut msgs = self.fetch_messages().await;
+        let mut msgs = self.fetch_messages();
         let progress_bar = indicatif::ProgressBar::new(msgs_count);
         let progress_style = indicatif::ProgressStyle::with_template(
             "{bar:100.green} {pos:>7} / {len:7}",
@@ -282,7 +284,6 @@ mod tests {
 
         let mut headers_actual: Vec<Header> = db
             .fetch_headers(&msg_hash)
-            .await
             .filter_map(|res| async { res.ok() })
             .collect()
             .await;
@@ -316,7 +317,6 @@ mod tests {
                 raw: msg.as_bytes().to_vec(),
             }],
             db.fetch_messages()
-                .await
                 .filter_map(|res| async { res.ok() })
                 .collect::<Vec<Msg>>()
                 .await
