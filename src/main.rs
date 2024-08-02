@@ -40,13 +40,13 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!(?cfg, "Config");
     match cli.command {
         Cmd::Fetch(cmd) => {
-            cmd.run(&cfg).instrument(info_span!("fetch")).await?
+            cmd.run(&cfg).instrument(info_span!("fetch")).await?;
         }
         Cmd::Export(cmd) => {
-            cmd.run(&cfg).instrument(info_span!("export")).await?
+            cmd.run(&cfg).instrument(info_span!("export")).await?;
         }
         Cmd::Import(cmd) => {
-            cmd.run(&cfg).instrument(info_span!("import")).await?
+            cmd.run(&cfg).instrument(info_span!("import")).await?;
         }
     }
     Ok(())
