@@ -99,7 +99,7 @@ impl DataBase {
         Ok(())
     }
 
-    pub async fn count_messages<'a>(&'a self) -> anyhow::Result<u64> {
+    pub async fn count_messages(&self) -> anyhow::Result<u64> {
         let (count,): (i64,) =
             sqlx::query_as("SELECT count(*) FROM messages")
                 .fetch_one(&self.pool)
