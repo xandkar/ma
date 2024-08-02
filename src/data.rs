@@ -1,15 +1,15 @@
-use std::{
-    path::{Path, PathBuf},
-    pin::Pin,
-};
+use std::{path::Path, pin::Pin};
 
 use futures::Stream;
 use sqlx::Executor;
 use tokio::fs;
 
-use crate::cfg::Cfg;
+use crate::{
+    cfg::{self, Cfg},
+    file, hash,
+};
 
-const MIGRATION_0: &str = include_str!("../migrations/0_archive.sql");
+const MIGRATION_0: &str = include_str!("../migrations/0_data.sql");
 
 #[derive(sqlx::FromRow, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub struct Msg {
@@ -30,25 +30,88 @@ pub struct Body {
     pub text: Option<String>,
 }
 
-pub struct Archive {
+#[derive(Debug, sqlx::FromRow)]
+pub struct LastSeenMsg {
+    pub account: String,
+    pub mailbox: String,
+    pub uid: u32,
+}
+
+pub struct DataBase {
+    cfg: cfg::Db,
     pool: sqlx::Pool<sqlx::Sqlite>,
 }
 
-impl Archive {
-    pub async fn connect(db_dir: &Path) -> anyhow::Result<Self> {
-        let db_file = PathBuf::from("archive").with_extension("db");
-        let db_path = db_dir.join(db_file);
-        if let Some(parent) = db_path.parent() {
+impl DataBase {
+    pub async fn connect(cfg: &cfg::Db) -> anyhow::Result<Self> {
+        if let Some(parent) = cfg.db_file.parent() {
             fs::create_dir_all(&parent).await?;
         }
-        let url = format!("sqlite://{}?mode=rwc", db_path.to_string_lossy());
+        let url =
+            format!("sqlite://{}?mode=rwc", cfg.db_file.to_string_lossy());
         let pool = sqlx::sqlite::SqlitePoolOptions::new()
             .max_connections(5)
             .connect(&url)
             .await?;
-        let selph = Self { pool };
+        let selph = Self {
+            cfg: cfg.clone(),
+            pool,
+        };
         selph.pool.execute(MIGRATION_0).await?;
         Ok(selph)
+    }
+
+    pub async fn store_last_seen(
+        &self,
+        account: &str,
+        mailbox: &str,
+        uid: u32,
+    ) -> anyhow::Result<()> {
+        sqlx::query("INSERT OR REPLACE INTO last_seen_msg (account, mailbox, uid) VALUES (?, ?, ?)")
+            .bind(account)
+            .bind(mailbox)
+            .bind(uid)
+            .execute(&self.pool).await?;
+        Ok(())
+    }
+
+    pub async fn fetch_last_seen(
+        &self,
+        account: &str,
+        mailbox: &str,
+    ) -> sqlx::Result<Option<u32>> {
+        let result: sqlx::Result<LastSeenMsg> = sqlx::query_as(
+            "SELECT * FROM last_seen_msg WHERE account = ? AND mailbox = ?",
+        )
+        .bind(account)
+        .bind(mailbox)
+        .fetch_one(&self.pool)
+        .await;
+        match result {
+            Ok(seen) => Ok(Some(seen.uid)),
+            Err(sqlx::Error::RowNotFound) => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+
+    pub async fn store_msg(&self, raw: &[u8]) -> anyhow::Result<()> {
+        let hash = hash::sha256(raw);
+        file::write_as_gz(
+            self.cfg
+                .obj_dir
+                .join(&hash[..2])
+                .join(&hash)
+                .with_extension("eml"),
+            raw,
+        )?;
+        let msg = Msg {
+            hash,
+            raw: raw.to_vec(),
+        };
+        let mut tx = self.pool.begin().await?;
+        tx = tx_insert_msg(tx, &msg).await?;
+        tx.commit().await?;
+        Ok(())
     }
 
     pub async fn fetch_messages<'a>(
@@ -79,35 +142,24 @@ impl Archive {
         Ok(bodies.pop())
     }
 
-    pub async fn store(&self, hash: &str, raw: &[u8]) -> anyhow::Result<()> {
-        let msg = Msg {
-            hash: hash.to_string(),
-            raw: raw.to_vec(),
-        };
-        let mut tx = self.pool.begin().await?;
-        tx = tx_insert(tx, &msg).await?;
-        tx.commit().await?;
-        Ok(())
-    }
-
     pub async fn insert_dumped(&self, cfg: &Cfg) -> anyhow::Result<()> {
         let mut tx = self.pool.begin().await?;
         // TODO Parallelize:
         //      - task to par_iter (rayon) from fs and write to channel
         //      - task to read from channel and write to db
-        for msg in dumped(&cfg.obj_dir) {
-            tx = tx_insert(tx, &msg).await?;
+        for msg in dumped(&cfg.db.obj_dir) {
+            tx = tx_insert_msg(tx, &msg).await?;
         }
         tx.commit().await?;
         Ok(())
     }
 }
 
-async fn tx_insert<'tx>(
+async fn tx_insert_msg<'tx>(
     mut tx: sqlx::Transaction<'tx, sqlx::Sqlite>,
     msg: &Msg,
 ) -> anyhow::Result<sqlx::Transaction<'tx, sqlx::Sqlite>> {
-    tx = tx_insert_msg(tx, &msg).await?;
+    tx = tx_insert_msg_(tx, msg).await?;
     let (headers, _) = mailparse::parse_headers(&msg.raw[..])?;
     for header in headers {
         let name = header.get_key();
@@ -123,7 +175,7 @@ async fn tx_insert<'tx>(
     Ok(tx)
 }
 
-async fn tx_insert_msg<'tx>(
+async fn tx_insert_msg_<'tx>(
     mut tx: sqlx::Transaction<'tx, sqlx::Sqlite>,
     msg: &Msg,
 ) -> anyhow::Result<sqlx::Transaction<'tx, sqlx::Sqlite>> {
@@ -196,13 +248,17 @@ mod tests {
 
     #[tokio::test]
     async fn roundtrip() {
-        let db_dir = tempfile::tempdir().unwrap();
-        let archive = Archive::connect(db_dir.path()).await.unwrap();
+        let obj_dir = tempfile::tempdir().unwrap().path().to_path_buf();
+        let cfg = cfg::Db {
+            db_file: tempfile::tempdir().unwrap().path().join("db"),
+            obj_dir: obj_dir.clone(),
+        };
+        let db = DataBase::connect(&cfg).await.unwrap();
         let msg: &str = "Foo: bar\nBaz: qux\n\nHi";
         let msg_hash = hash::sha256(msg);
-        archive.store(&msg_hash, msg.as_bytes()).await.unwrap();
+        db.store_msg(msg.as_bytes()).await.unwrap();
 
-        let mut headers_actual: Vec<Header> = archive
+        let mut headers_actual: Vec<Header> = db
             .fetch_headers(&msg_hash)
             .await
             .filter_map(|res| async { res.ok() })
@@ -229,7 +285,7 @@ mod tests {
                 msg_hash: msg_hash.clone(),
                 text: Some("Hi".to_string())
             },
-            archive.fetch_body(&msg_hash).await.unwrap().unwrap()
+            db.fetch_body(&msg_hash).await.unwrap().unwrap()
         );
 
         assert_eq!(
@@ -237,12 +293,32 @@ mod tests {
                 hash: msg_hash.clone(),
                 raw: msg.as_bytes().to_vec(),
             }],
-            archive
-                .fetch_messages()
+            db.fetch_messages()
                 .await
                 .filter_map(|res| async { res.ok() })
                 .collect::<Vec<Msg>>()
                 .await
+        );
+
+        let obj_file = format!(
+            "{}.eml.gz",
+            obj_dir
+                .join(msg_hash[..2].to_string())
+                .join(msg_hash)
+                .to_string_lossy()
+        );
+        assert!(fs::try_exists(&obj_file).await.unwrap());
+
+        let obj_bytes = file::read_gz(&obj_file).unwrap();
+        assert_eq!(msg.as_bytes(), obj_bytes);
+
+        let account = "foo";
+        let mailbox = "bar";
+        let uid: u32 = 1;
+        db.store_last_seen(account, mailbox, uid).await.unwrap();
+        assert_eq!(
+            uid,
+            db.fetch_last_seen(account, mailbox).await.unwrap().unwrap()
         );
     }
 }

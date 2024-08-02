@@ -38,16 +38,37 @@ impl Default for ImapAccount {
     }
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, Default)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct Imap {
     pub accounts: HashMap<String, ImapAccount>,
 }
+impl Default for Imap {
+    fn default() -> Self {
+        let accounts =
+            HashMap::from([("default".to_string(), ImapAccount::default())]);
+        Self { accounts }
+    }
+}
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+pub struct Db {
+    pub obj_dir: PathBuf,
+    pub db_file: PathBuf,
+}
+
+impl Default for Db {
+    fn default() -> Self {
+        Self {
+            obj_dir: PathBuf::from("dump"),
+            db_file: PathBuf::from("ma.db"),
+        }
+    }
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, Default)]
 pub struct Cfg {
     pub imap: Imap,
-    pub obj_dir: PathBuf,
-    pub db_dir: PathBuf,
+    pub db: Db,
 }
 
 impl Cfg {
@@ -94,21 +115,6 @@ impl Cfg {
             tracing::info!(?path, cfg = ?selph, "Path not found. Using defaults.");
             selph.to_file(&path).await?;
             Ok(selph)
-        }
-    }
-}
-
-impl Default for Cfg {
-    fn default() -> Self {
-        Self {
-            imap: Imap {
-                accounts: HashMap::from([(
-                    "default".to_string(),
-                    ImapAccount::default(),
-                )]),
-            },
-            obj_dir: PathBuf::from("dump"),
-            db_dir: PathBuf::from("db"),
         }
     }
 }

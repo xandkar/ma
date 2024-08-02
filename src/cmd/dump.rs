@@ -1,13 +1,9 @@
-use std::path::Path;
-
 use futures::StreamExt;
 
 use crate::{
-    archive::Archive,
     cfg::{Cfg, ImapAccount},
-    file, hash,
+    data::DataBase,
     imap::Session,
-    state::State,
 };
 
 #[derive(clap::Args, Debug, Clone)]
@@ -19,18 +15,9 @@ pub struct Cmd {
 
 impl Cmd {
     pub async fn run(&self, cfg: &Cfg) -> anyhow::Result<()> {
-        let archive = Archive::connect(&cfg.db_dir).await?;
-        let state = State::connect(&cfg.db_dir).await?;
+        let db = DataBase::connect(&cfg.db).await?;
         for (account_name, account) in &cfg.imap.accounts {
-            dump_account(
-                account_name,
-                account,
-                &cfg.obj_dir,
-                &state,
-                &archive,
-                self.all,
-            )
-            .await?;
+            dump_account(account_name, account, &db, self.all).await?;
         }
         Ok(())
     }
@@ -40,9 +27,7 @@ impl Cmd {
 async fn dump_account(
     name: &str,
     account: &ImapAccount,
-    obj_dir: &Path,
-    state: &State,
-    archive: &Archive,
+    db: &DataBase,
     all: bool,
 ) -> anyhow::Result<()> {
     tracing::info!(?account, "Dump");
@@ -56,14 +41,10 @@ async fn dump_account(
     for mailbox in mailboxes {
         // tracing::info!(name = ?mailbox, "Mailbox");
         eprintln!("{name:?} / {mailbox:?}:");
-        let last_seen_uid = state.get(name, &mailbox).await?.unwrap_or(1);
-        match session
-            .fetch_msgs_from(
-                &mailbox,
-                all.then_some(1).unwrap_or(last_seen_uid),
-            )
-            .await
-        {
+        let last_seen_uid =
+            db.fetch_last_seen(name, &mailbox).await?.unwrap_or(1);
+        let first_uid = if all { 1 } else { last_seen_uid };
+        match session.fetch_msgs_from(&mailbox, first_uid).await {
             Err(error) => {
                 tracing::error!(
                     ?mailbox,
@@ -81,17 +62,9 @@ async fn dump_account(
                 progress_bar.tick();
                 while let Some((uid, raw)) = msgs.next().await {
                     // tracing::info!(uid, "Msg fetched");
-                    let hash = hash::sha256(&raw);
-                    archive.store(&hash, &raw[..]).await?;
-                    file::write_as_gz(
-                        &obj_dir
-                            .join(&hash[..2])
-                            .join(&hash)
-                            .with_extension("eml"),
-                        raw,
-                    )?;
+                    db.store_msg(&raw[..]).await?;
                     if uid > last_seen_uid {
-                        state.set(name, &mailbox, uid).await?;
+                        db.store_last_seen(name, &mailbox, uid).await?;
                     }
                     progress_bar.inc(1);
                     // tracing::info!(uid, "Msg stored");
