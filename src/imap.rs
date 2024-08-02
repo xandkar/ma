@@ -143,20 +143,23 @@ impl Session {
     }
 }
 
-#[tracing::instrument(skip_all)]
-async fn connect(
-    cfg::ImapAccount {
+#[tracing::instrument]
+async fn connect(account: &cfg::ImapAccount) -> Result<ImapSession> {
+    let cfg::ImapAccount {
         addr,
         port,
         user,
         pass,
-    }: &cfg::ImapAccount,
-) -> Result<ImapSession> {
+    } = account;
+    tracing::debug!("Connecting ...");
     let tcp = TcpStream::connect((addr.as_str(), *port)).await?;
+    tracing::debug!("Connected TCP.");
     let tls = tls_stream(addr, tcp).await?;
+    tracing::debug!("Connected TLS.");
     let client = async_imap::Client::new(tls);
     let session: ImapSession =
         client.login(user, pass).await.map_err(|(e, _)| e)?;
+    tracing::debug!("Logged-in IMAP.");
     Ok(session)
 }
 
