@@ -13,5 +13,7 @@ TODO
 - [ ] snapshot (log?) mailboxes and message locations
 - [ ] poll/idle for new messages
 - [ ] post-update hooks
+- [ ] timeouts
+- [ ] parallelize import/export
 
 Hooks can be used for custom notifications, aggregate query reruns, etc.
