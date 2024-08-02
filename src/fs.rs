@@ -14,9 +14,9 @@ struct FilePaths {
 
 impl FilePaths {
     fn find(root: &Path) -> Self {
-        let mut frontier = Vec::new();
-        frontier.push(root.to_path_buf());
-        Self { frontier }
+        Self {
+            frontier: vec![root.to_path_buf()],
+        }
     }
 }
 
