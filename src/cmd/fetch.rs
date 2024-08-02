@@ -17,14 +17,14 @@ impl Cmd {
     pub async fn run(&self, cfg: &Cfg) -> anyhow::Result<()> {
         let db = DataBase::connect(&cfg.db).await?;
         for (account_name, account) in &cfg.imap.accounts {
-            dump_account(account_name, account, &db, self.all).await?;
+            fetch_account(account_name, account, &db, self.all).await?;
         }
         Ok(())
     }
 }
 
 #[tracing::instrument(name = "account", skip_all, fields(name = name))]
-async fn dump_account(
+async fn fetch_account(
     name: &str,
     account: &ImapAccount,
     db: &DataBase,

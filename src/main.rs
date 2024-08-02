@@ -20,11 +20,14 @@ struct Cli {
 
 #[derive(Debug, clap::Subcommand)]
 enum Cmd {
-    /// Download all messages from all mailboxes from all accounts.
-    Dump(ma::cmd::dump::Cmd),
+    /// Download all messages from all mailboxes from all accounts to database.
+    Fetch(ma::cmd::fetch::Cmd),
 
-    /// Insert dumped messages into database.
-    Insert(ma::cmd::insert::Cmd),
+    /// Export fetched messages from database to git-inspired file tree.
+    Export(ma::cmd::export::Cmd),
+
+    /// Import exported messages from file tree to database.
+    Import(ma::cmd::import::Cmd),
 }
 
 #[tokio::main]
@@ -36,11 +39,14 @@ async fn main() -> anyhow::Result<()> {
     let cfg = ma::cfg::Cfg::read_or_init().await?;
     tracing::info!(?cfg, "Config");
     match cli.command {
-        Cmd::Dump(cmd) => {
-            cmd.run(&cfg).instrument(info_span!("dump")).await?
+        Cmd::Fetch(cmd) => {
+            cmd.run(&cfg).instrument(info_span!("fetch")).await?
         }
-        Cmd::Insert(cmd) => {
-            cmd.run(&cfg).instrument(info_span!("insert")).await?
+        Cmd::Export(cmd) => {
+            cmd.run(&cfg).instrument(info_span!("export")).await?
+        }
+        Cmd::Import(cmd) => {
+            cmd.run(&cfg).instrument(info_span!("import")).await?
         }
     }
     Ok(())

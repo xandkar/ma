@@ -52,15 +52,13 @@ impl Default for Imap {
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct Db {
-    pub obj_dir: PathBuf,
-    pub db_file: PathBuf,
+    pub file: PathBuf,
 }
 
 impl Default for Db {
     fn default() -> Self {
         Self {
-            obj_dir: PathBuf::from("dump"),
-            db_file: PathBuf::from("ma.db"),
+            file: PathBuf::from("ma.db"),
         }
     }
 }

@@ -1,13 +1,11 @@
 use std::{path::Path, pin::Pin};
 
-use futures::Stream;
+use anyhow::bail;
+use futures::{Stream, StreamExt};
 use sqlx::Executor;
 use tokio::fs;
 
-use crate::{
-    cfg::{self, Cfg},
-    file, hash,
-};
+use crate::{cfg, file, hash};
 
 const MIGRATION_0: &str = include_str!("../migrations/0_data.sql");
 
@@ -38,25 +36,20 @@ pub struct LastSeenMsg {
 }
 
 pub struct DataBase {
-    cfg: cfg::Db,
     pool: sqlx::Pool<sqlx::Sqlite>,
 }
 
 impl DataBase {
     pub async fn connect(cfg: &cfg::Db) -> anyhow::Result<Self> {
-        if let Some(parent) = cfg.db_file.parent() {
+        if let Some(parent) = cfg.file.parent() {
             fs::create_dir_all(&parent).await?;
         }
-        let url =
-            format!("sqlite://{}?mode=rwc", cfg.db_file.to_string_lossy());
+        let url = format!("sqlite://{}?mode=rwc", cfg.file.to_string_lossy());
         let pool = sqlx::sqlite::SqlitePoolOptions::new()
             .max_connections(5)
             .connect(&url)
             .await?;
-        let selph = Self {
-            cfg: cfg.clone(),
-            pool,
-        };
+        let selph = Self { pool };
         selph.pool.execute(MIGRATION_0).await?;
         Ok(selph)
     }
@@ -96,14 +89,6 @@ impl DataBase {
 
     pub async fn store_msg(&self, raw: &[u8]) -> anyhow::Result<()> {
         let hash = hash::sha256(raw);
-        file::write_as_gz(
-            self.cfg
-                .obj_dir
-                .join(&hash[..2])
-                .join(&hash)
-                .with_extension("eml"),
-            raw,
-        )?;
         let msg = Msg {
             hash,
             raw: raw.to_vec(),
@@ -112,6 +97,15 @@ impl DataBase {
         tx = tx_insert_msg(tx, &msg).await?;
         tx.commit().await?;
         Ok(())
+    }
+
+    pub async fn count_messages<'a>(&'a self) -> anyhow::Result<u64> {
+        let (count,): (i64,) =
+            sqlx::query_as("SELECT count(*) FROM messages")
+                .fetch_one(&self.pool)
+                .await?;
+        let count = u64::try_from(count)?;
+        Ok(count)
     }
 
     pub async fn fetch_messages<'a>(
@@ -142,15 +136,44 @@ impl DataBase {
         Ok(bodies.pop())
     }
 
-    pub async fn insert_dumped(&self, cfg: &Cfg) -> anyhow::Result<()> {
+    pub async fn import(&self, obj_dir: &Path) -> anyhow::Result<()> {
         let mut tx = self.pool.begin().await?;
         // TODO Parallelize:
         //      - task to par_iter (rayon) from fs and write to channel
         //      - task to read from channel and write to db
-        for msg in dumped(&cfg.db.obj_dir) {
+        for msg in exported(obj_dir) {
             tx = tx_insert_msg(tx, &msg).await?;
         }
         tx.commit().await?;
+        Ok(())
+    }
+
+    pub async fn export(&self, obj_dir: &Path) -> anyhow::Result<()> {
+        if fs::try_exists(obj_dir).await? {
+            if !fs::metadata(obj_dir).await?.is_dir() {
+                bail!("Not a directory: {obj_dir:?}");
+            }
+        } else {
+            fs::create_dir_all(obj_dir).await?;
+        }
+        let msgs_count = self.count_messages().await?;
+        let mut msgs = self.fetch_messages().await;
+        let progress_bar = indicatif::ProgressBar::new(msgs_count);
+        let progress_style = indicatif::ProgressStyle::with_template(
+            "{bar:100.green} {pos:>7} / {len:7}",
+        )?;
+        progress_bar.set_style(progress_style);
+        progress_bar.tick();
+        // TODO Parallelize.
+        while let Some(msg_result) = msgs.next().await {
+            let Msg { hash, raw } = msg_result?;
+            file::write_as_gz(
+                obj_dir.join(&hash[..2]).join(&hash).with_extension("eml"),
+                raw,
+            )?;
+            progress_bar.inc(1);
+        }
+        progress_bar.finish();
         Ok(())
     }
 }
@@ -219,7 +242,7 @@ async fn tx_insert_body<'tx>(
     Ok(tx)
 }
 
-fn dumped(path: &Path) -> impl Iterator<Item = Msg> {
+fn exported(path: &Path) -> impl Iterator<Item = Msg> {
     crate::fs::find_files(path)
         .filter(|p| p.to_string_lossy().ends_with(".eml.gz"))
         .filter_map(|path| {
@@ -250,8 +273,7 @@ mod tests {
     async fn roundtrip() {
         let obj_dir = tempfile::tempdir().unwrap().path().to_path_buf();
         let cfg = cfg::Db {
-            db_file: tempfile::tempdir().unwrap().path().join("db"),
-            obj_dir: obj_dir.clone(),
+            file: tempfile::tempdir().unwrap().path().join("db"),
         };
         let db = DataBase::connect(&cfg).await.unwrap();
         let msg: &str = "Foo: bar\nBaz: qux\n\nHi";
@@ -300,6 +322,7 @@ mod tests {
                 .await
         );
 
+        db.export(&obj_dir).await.unwrap();
         let obj_file = format!(
             "{}.eml.gz",
             obj_dir
