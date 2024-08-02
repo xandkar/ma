@@ -19,7 +19,7 @@ pub struct Cmd {
 
 impl Cmd {
     pub async fn run(&self, cfg: &Cfg) -> anyhow::Result<()> {
-        let archive = Archive::connect(cfg).await?;
+        let archive = Archive::connect(&cfg.db_dir).await?;
         let state = State::connect(&cfg.db_dir).await?;
         for (account_name, account) in &cfg.imap.accounts {
             dump_account(
@@ -82,7 +82,7 @@ async fn dump_account(
                 while let Some((uid, raw)) = msgs.next().await {
                     // tracing::info!(uid, "Msg fetched");
                     let hash = hash::sha256(&raw);
-                    archive.insert(&hash, &raw[..]).await?;
+                    archive.store(&hash, &raw[..]).await?;
                     file::write_as_gz(
                         &obj_dir
                             .join(&hash[..2])

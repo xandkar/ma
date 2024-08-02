@@ -1,6 +1,6 @@
 [package]
 name = "ma"
-version = "0.4.0"
+version = "0.4.1"
 description = "Mail Archivist"
 repository = "https://github.com/xandkar/ma"
 keywords = ["mail", "email", "archive", "database"]
@@ -30,3 +30,6 @@ toml = "0.8.16"
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 webpki-roots = "0.26.0"
+
+[dev-dependencies]
+tempfile = "3.10.1"

@@ -11,22 +11,22 @@ use crate::cfg::Cfg;
 
 const MIGRATION_0: &str = include_str!("../migrations/0_archive.sql");
 
-#[derive(Debug, sqlx::FromRow)]
+#[derive(sqlx::FromRow, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub struct Msg {
     pub hash: String,
     pub raw: Vec<u8>,
 }
 
-#[derive(Debug, sqlx::FromRow)]
+#[derive(sqlx::FromRow, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub struct Header {
     pub msg_hash: String,
     pub name: String,
     pub value: String,
 }
 
-#[derive(Debug, sqlx::FromRow)]
+#[derive(sqlx::FromRow, Debug, PartialEq)]
 pub struct Body {
-    pub hash: String,
+    pub msg_hash: String,
     pub text: Option<String>,
 }
 
@@ -35,9 +35,9 @@ pub struct Archive {
 }
 
 impl Archive {
-    pub async fn connect(cfg: &Cfg) -> anyhow::Result<Self> {
+    pub async fn connect(db_dir: &Path) -> anyhow::Result<Self> {
         let db_file = PathBuf::from("archive").with_extension("db");
-        let db_path = cfg.db_dir.join(db_file);
+        let db_path = db_dir.join(db_file);
         if let Some(parent) = db_path.parent() {
             fs::create_dir_all(&parent).await?;
         }
@@ -51,7 +51,13 @@ impl Archive {
         Ok(selph)
     }
 
-    pub async fn headers<'a>(
+    pub async fn fetch_messages<'a>(
+        &'a self,
+    ) -> Pin<Box<dyn Stream<Item = sqlx::Result<Msg>> + 'a>> {
+        sqlx::query_as("SELECT * FROM messages").fetch(&self.pool)
+    }
+
+    pub async fn fetch_headers<'a>(
         &'a self,
         msg_hash: &'a str,
     ) -> Pin<Box<dyn Stream<Item = sqlx::Result<Header>> + 'a>> {
@@ -60,7 +66,7 @@ impl Archive {
             .fetch(&self.pool)
     }
 
-    pub async fn body<'a>(
+    pub async fn fetch_body<'a>(
         &'a self,
         msg_hash: &'a str,
     ) -> sqlx::Result<Option<Body>> {
@@ -73,7 +79,7 @@ impl Archive {
         Ok(bodies.pop())
     }
 
-    pub async fn insert(&self, hash: &str, raw: &[u8]) -> anyhow::Result<()> {
+    pub async fn store(&self, hash: &str, raw: &[u8]) -> anyhow::Result<()> {
         let msg = Msg {
             hash: hash.to_string(),
             raw: raw.to_vec(),
@@ -178,4 +184,65 @@ fn dumped(path: &Path) -> impl Iterator<Item = Msg> {
                 .map(|raw| Msg { hash: stem, raw })
         })
         .take(5)
+}
+
+#[cfg(test)]
+mod tests {
+    use futures::StreamExt;
+
+    use crate::hash;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn roundtrip() {
+        let db_dir = tempfile::tempdir().unwrap();
+        let archive = Archive::connect(db_dir.path()).await.unwrap();
+        let msg: &str = "Foo: bar\nBaz: qux\n\nHi";
+        let msg_hash = hash::sha256(msg);
+        archive.store(&msg_hash, msg.as_bytes()).await.unwrap();
+
+        let mut headers_actual: Vec<Header> = archive
+            .fetch_headers(&msg_hash)
+            .await
+            .filter_map(|res| async { res.ok() })
+            .collect()
+            .await;
+        let mut headers_expected = vec![
+            Header {
+                msg_hash: msg_hash.clone(),
+                name: "Baz".to_string(),
+                value: "qux".to_string(),
+            },
+            Header {
+                msg_hash: msg_hash.clone(),
+                name: "Foo".to_string(),
+                value: "bar".to_string(),
+            },
+        ];
+        headers_expected.sort();
+        headers_actual.sort();
+        assert_eq!(headers_expected, headers_actual);
+
+        assert_eq!(
+            Body {
+                msg_hash: msg_hash.clone(),
+                text: Some("Hi".to_string())
+            },
+            archive.fetch_body(&msg_hash).await.unwrap().unwrap()
+        );
+
+        assert_eq!(
+            vec![Msg {
+                hash: msg_hash.clone(),
+                raw: msg.as_bytes().to_vec(),
+            }],
+            archive
+                .fetch_messages()
+                .await
+                .filter_map(|res| async { res.ok() })
+                .collect::<Vec<Msg>>()
+                .await
+        );
+    }
 }

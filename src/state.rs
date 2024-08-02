@@ -66,3 +66,19 @@ impl State {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn roundtrip() {
+        let db_dir = tempfile::tempdir().unwrap();
+        let state = State::connect(db_dir.path()).await.unwrap();
+        let account = "foo";
+        let mailbox = "bar";
+        let uid: u32 = 1;
+        state.set(account, mailbox, uid).await.unwrap();
+        assert_eq!(uid, state.get(account, mailbox).await.unwrap().unwrap());
+    }
+}
