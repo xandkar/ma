@@ -17,7 +17,15 @@ impl Cmd {
     pub async fn run(&self, cfg: &Cfg) -> anyhow::Result<()> {
         let db = DataBase::connect(&cfg.db).await?;
         for (account_name, account) in &cfg.imap.accounts {
-            fetch_account(account_name, account, &db, self.all).await?;
+            if let Err(error) =
+                fetch_account(account_name, account, &db, self.all).await
+            {
+                tracing::error!(
+                    name = ?account_name,
+                    ?error,
+                    "Failed to fetch account."
+                );
+            }
         }
         Ok(())
     }
