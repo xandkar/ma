@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS headers (
     name TEXT NOT NULL,
     value TEXT NOT NULL,
     FOREIGN KEY (msg_hash) REFERENCES messages(hash),
-    UNIQUE (msg_hash, name)
+    UNIQUE (msg_hash, name, value)
 );
 
 CREATE TABLE IF NOT EXISTS bodies (
