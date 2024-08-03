@@ -260,7 +260,6 @@ fn exported(path: &Path) -> impl Iterator<Item = Msg> {
                 .ok()
                 .map(|raw| Msg { hash: stem, raw })
         })
-        .take(5)
 }
 
 #[cfg(test)]
