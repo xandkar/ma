@@ -1,4 +1,7 @@
-use std::{path::Path, pin::Pin};
+use std::{
+    path::{Path, PathBuf},
+    pin::Pin,
+};
 
 use anyhow::bail;
 use futures::{Stream, StreamExt};
@@ -143,10 +146,20 @@ impl DataBase {
         // TODO Parallelize:
         //      - task to par_iter (rayon) from fs and write to channel
         //      - task to read from channel and write to db
-        for msg in exported(obj_dir) {
+        let (msgs_count, msgs) = exported(obj_dir);
+        let progress_bar =
+            indicatif::ProgressBar::new(u64::try_from(msgs_count)?);
+        let progress_style = indicatif::ProgressStyle::with_template(
+            "{bar:100.green} {pos:>7} / {len:7}",
+        )?;
+        progress_bar.set_style(progress_style);
+        progress_bar.tick();
+        for msg in msgs {
             tx = tx_insert_msg(tx, &msg).await?;
+            progress_bar.inc(1);
         }
         tx.commit().await?;
+        progress_bar.finish();
         Ok(())
     }
 
@@ -244,8 +257,8 @@ async fn tx_insert_body<'tx>(
     Ok(tx)
 }
 
-fn exported(path: &Path) -> impl Iterator<Item = Msg> {
-    crate::fs::find_files(path)
+fn exported(path: &Path) -> (usize, impl Iterator<Item = Msg>) {
+    let paths_and_stems: Vec<(PathBuf, String)> = crate::fs::find_files(path)
         .filter(|p| p.to_string_lossy().ends_with(".eml.gz"))
         .filter_map(|path| {
             let stem = path.file_stem().and_then(|s| {
@@ -255,11 +268,14 @@ fn exported(path: &Path) -> impl Iterator<Item = Msg> {
             });
             stem.map(|s| (path, s))
         })
-        .filter_map(|(path, stem)| {
-            crate::file::read_gz(&path)
-                .ok()
-                .map(|raw| Msg { hash: stem, raw })
-        })
+        .collect();
+    let n = paths_and_stems.len();
+    let msgs = paths_and_stems.into_iter().filter_map(|(path, stem)| {
+        crate::file::read_gz(&path)
+            .ok()
+            .map(|raw| Msg { hash: stem, raw })
+    });
+    (n, msgs)
 }
 
 #[cfg(test)]
