@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use crate::{cfg::Cfg, data::DataBase};
+use crate::{cfg::Cfg, data};
 
 #[derive(clap::Args, Debug, Clone)]
 pub struct Cmd {
@@ -9,7 +9,7 @@ pub struct Cmd {
 
 impl Cmd {
     pub async fn run(&self, cfg: &Cfg) -> anyhow::Result<()> {
-        let db = DataBase::connect(&cfg.db).await?;
+        let db = data::Storage::connect(&cfg.db).await?;
         db.export(&self.obj_dir).await?;
         Ok(())
     }

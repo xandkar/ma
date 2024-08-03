@@ -38,11 +38,11 @@ pub struct LastSeenMsg {
     pub uid: u32,
 }
 
-pub struct DataBase {
+pub struct Storage {
     pool: sqlx::Pool<sqlx::Sqlite>,
 }
 
-impl DataBase {
+impl Storage {
     pub async fn connect(cfg: &cfg::Db) -> anyhow::Result<Self> {
         if let Some(parent) = cfg.file.parent() {
             fs::create_dir_all(&parent).await?;
@@ -292,7 +292,7 @@ mod tests {
         let cfg = cfg::Db {
             file: tempfile::tempdir().unwrap().path().join("db"),
         };
-        let db = DataBase::connect(&cfg).await.unwrap();
+        let db = Storage::connect(&cfg).await.unwrap();
         let msg: &str = "Foo: bar\nBaz: qux\n\nHi";
         let msg_hash = hash::sha256(msg);
         db.store_msg(msg.as_bytes()).await.unwrap();

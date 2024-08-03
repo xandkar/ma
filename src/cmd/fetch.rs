@@ -2,7 +2,7 @@ use futures::StreamExt;
 
 use crate::{
     cfg::{Cfg, ImapAccount},
-    data::DataBase,
+    data,
     imap::Session,
 };
 
@@ -15,7 +15,7 @@ pub struct Cmd {
 
 impl Cmd {
     pub async fn run(&self, cfg: &Cfg) -> anyhow::Result<()> {
-        let db = DataBase::connect(&cfg.db).await?;
+        let db = data::Storage::connect(&cfg.db).await?;
         for (account_name, account) in &cfg.imap.accounts {
             if let Err(error) =
                 fetch_account(account_name, account, &db, self.all).await
@@ -35,7 +35,7 @@ impl Cmd {
 async fn fetch_account(
     name: &str,
     account: &ImapAccount,
-    db: &DataBase,
+    db: &data::Storage,
     all: bool,
 ) -> anyhow::Result<()> {
     tracing::info!(?account, "Dump");
