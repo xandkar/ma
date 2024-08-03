@@ -32,13 +32,7 @@ enum Cmd {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    human_panic::setup_panic!(human_panic::Metadata::new(
-        env!("CARGO_PKG_NAME"),
-        env!("CARGO_PKG_VERSION")
-    )
-    .authors("Siraaj Khandkar <siraaj@khandkar.net>")
-    .homepage("https://github.com/xandkar/ma")
-    .support("- Submit an issue at https://github.com/xandkar/ma/issues"));
+    human_panic_setup();
     let cli = Cli::parse();
     env::set_current_dir(&cli.dir)?;
     ma::tracing_init(Some(cli.log_level))?;
@@ -57,4 +51,19 @@ async fn main() -> anyhow::Result<()> {
         }
     }
     Ok(())
+}
+
+fn human_panic_setup() {
+    macro_rules! repo {
+        () => {
+            env!("CARGO_PKG_REPOSITORY")
+        };
+    }
+    human_panic::setup_panic!(human_panic::Metadata::new(
+        env!("CARGO_PKG_NAME"),
+        env!("CARGO_PKG_VERSION")
+    )
+    .authors(env!("CARGO_PKG_AUTHORS"))
+    .homepage(repo!())
+    .support(concat!("- Submit an issue at ", repo!(), "/issues")));
 }
