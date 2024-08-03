@@ -11,7 +11,7 @@ struct Cli {
     dir: PathBuf,
 
     /// Specify log level.
-    #[clap(short, long = "log", default_value_t = tracing::Level::DEBUG)]
+    #[clap(short, long = "log", default_value_t = tracing::Level::INFO)]
     log_level: tracing::Level,
 
     #[clap(subcommand)]
