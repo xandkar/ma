@@ -39,4 +39,4 @@ CREATE TABLE IF NOT EXISTS last_seen_msg (
     UNIQUE (account, mailbox)
 );
 
-CREATE INDEX idx_last_seen_msg_account_mailbox ON last_seen_msg(account, mailbox);
+CREATE INDEX IF NOT EXISTS idx_last_seen_msg_account_mailbox ON last_seen_msg(account, mailbox);
