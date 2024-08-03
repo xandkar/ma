@@ -17,3 +17,11 @@ TODO
 - [ ] parallelize import/export
 
 Hooks can be used for custom notifications, aggregate query reruns, etc.
+
+Help
+----
+
+Create an App Password for:
+
+- Google/Gmail: <https://myaccount.google.com/apppasswords>
+- Fastmail: <https://app.fastmail.com/settings/security/integrations>
