@@ -7,7 +7,7 @@ use tracing::{info_span, Instrument};
 #[command(version, about)]
 struct Cli {
     /// Working directory (with config and data).
-    #[clap(short, long)]
+    #[clap(short, long, default_value = ".")]
     dir: PathBuf,
 
     /// Specify log level.

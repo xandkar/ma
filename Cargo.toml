@@ -1,6 +1,6 @@
 [package]
 name = "ma"
-version = "0.6.9"
+version = "0.6.10"
 description = "Mail Archivist"
 repository = "https://github.com/xandkar/ma"
 authors = ["Siraaj Khandkar <siraaj@khandkar.net>"]
