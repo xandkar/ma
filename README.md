@@ -25,3 +25,4 @@ Create an App Password for:
 
 - Google/Gmail: <https://myaccount.google.com/apppasswords>
 - Fastmail: <https://app.fastmail.com/settings/security/integrations>
+- Runbox: <https://runbox.com/mail/account_security>
