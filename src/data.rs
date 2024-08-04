@@ -10,7 +10,7 @@ use tokio::fs;
 
 use crate::{cfg, file, hash};
 
-const MIGRATION_0: &str = include_str!("../migrations/0_data.sql");
+const MIGRATIONS: [&str; 1] = [include_str!("../migrations/0_data.sql")];
 
 #[derive(sqlx::FromRow, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub struct Msg {
@@ -53,7 +53,9 @@ impl Storage {
             .connect(&url)
             .await?;
         let selph = Self { pool };
-        selph.pool.execute(MIGRATION_0).await?;
+        for migration in MIGRATIONS {
+            selph.pool.execute(migration).await?;
+        }
         Ok(selph)
     }
 
