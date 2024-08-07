@@ -28,6 +28,9 @@ enum Cmd {
 
     /// Import exported messages from file tree to database.
     Import(ma::cmd::import::Cmd),
+
+    /// Experimental analyses.
+    Analyze(ma::cmd::analyze::Cmd),
 }
 
 #[tokio::main]
@@ -48,6 +51,9 @@ async fn main() -> anyhow::Result<()> {
         }
         Cmd::Import(cmd) => {
             cmd.run(&cfg).instrument(info_span!("import")).await?;
+        }
+        Cmd::Analyze(cmd) => {
+            cmd.run(&cfg).instrument(info_span!("analyze")).await?;
         }
     }
     Ok(())
