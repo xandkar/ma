@@ -5,13 +5,13 @@ use crate::cfg::Cfg;
 #[derive(clap::Args, Debug)]
 pub struct Cmd {
     #[clap(subcommand)]
-    analysis: Analysis,
+    analyze: Analyze,
 }
 
 impl Cmd {
     pub async fn run(&self, cfg: &Cfg) -> anyhow::Result<()> {
-        match &self.analysis {
-            Analysis::Routes { reduce } => {
+        match &self.analyze {
+            Analyze::Routes { reduce } => {
                 routes::trace(*reduce, cfg).await?;
             }
         }
@@ -20,7 +20,7 @@ impl Cmd {
 }
 
 #[derive(clap::Subcommand, Debug)]
-enum Analysis {
+enum Analyze {
     /// Build a DOT-language graph from all msg hops found in "Received"
     /// headers. Depending on the number of messages, this can generate a very
     /// large graph that is not very usefully-visible when rendered. More work
