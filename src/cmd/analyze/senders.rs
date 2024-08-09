@@ -1,7 +1,10 @@
-use std::collections::{HashMap, HashSet};
+use std::{
+    borrow::Cow,
+    collections::{HashMap, HashSet},
+};
 
 use futures::StreamExt;
-use mail_parser::{Addr, Address, Group, HeaderName, HeaderValue, Message};
+use mail_parser::{Addr, Address, Group, Message};
 
 use crate::{
     cfg::Cfg,
@@ -29,17 +32,17 @@ pub async fn analyze(
         if let Some(msg) =
             mail_parser::MessageParser::new().parse_headers(&raw[..])
         {
-            for (name, addr) in msg_sender_addresses(msg) {
+            for (name, addr) in msg_sender_addresses(&msg) {
                 graph_name2addrs
-                    .entry(name.clone())
+                    .entry(name.to_string())
                     .and_modify(|addrs: &mut HashSet<String>| {
-                        addrs.insert(addr.clone());
+                        addrs.insert(addr.to_string());
                     })
                     .or_default();
                 graph_addr2names
-                    .entry(addr.clone())
+                    .entry(addr.to_string())
                     .and_modify(|names: &mut HashSet<String>| {
-                        names.insert(name.clone());
+                        names.insert(name.to_string());
                     })
                     .or_default();
             }
@@ -144,55 +147,25 @@ pub async fn analyze(
     Ok(())
 }
 
-fn msg_sender_addresses(msg: Message) -> Vec<(String, String)> {
-    msg.parts
+fn msg_sender_addresses<'a>(
+    msg: &'a Message,
+) -> impl Iterator<Item = (Cow<'a, str>, Cow<'a, str>)> + 'a {
+    msg.from()
         .into_iter()
-        .flat_map(|part| {
-            part.headers
-                .into_iter()
-                .filter_map(|h| match (h.name, h.value) {
-                    (
-                        HeaderName::From,
-                        HeaderValue::Address(Address::List(addresses)),
-                    ) => {
-                        let addresses: Vec<(String, String)> = addresses
-                            .into_iter()
-                            .filter_map(|addr| match addr {
-                                Addr {
-                                    name: Some(name),
-                                    address: Some(addr),
-                                } => {
-                                    Some((name.to_string(), addr.to_string()))
-                                }
-                                _ => None,
-                            })
-                            .collect();
-                        Some(addresses.into_iter())
-                    }
-                    (
-                        HeaderName::From,
-                        HeaderValue::Address(Address::Group(groups)),
-                    ) => {
-                        let addresses: Vec<(String, String)> = groups
-                            .into_iter()
-                            .flat_map(|Group { name: _, addresses }| {
-                                addresses.into_iter()
-                            })
-                            .filter_map(|addr| match addr {
-                                Addr {
-                                    name: Some(name),
-                                    address: Some(addr),
-                                } => {
-                                    Some((name.to_string(), addr.to_string()))
-                                }
-                                _ => None,
-                            })
-                            .collect();
-                        Some(addresses.into_iter())
-                    }
-                    _ => None,
+        .flat_map(|address| match address {
+            Address::List(addresses) => addresses.to_owned(),
+            Address::Group(groups) => groups
+                .iter()
+                .flat_map(|Group { name: _, addresses }| {
+                    addresses.iter().map(|a| a.to_owned())
                 })
-                .flatten()
+                .collect(),
         })
-        .collect()
+        .filter_map(|addr| match addr {
+            Addr {
+                name: Some(name),
+                address: Some(addr),
+            } => Some((name, addr)),
+            _ => None,
+        })
 }
