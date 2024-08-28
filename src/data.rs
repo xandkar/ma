@@ -1,6 +1,7 @@
 use std::{
     path::{Path, PathBuf},
     pin::Pin,
+    time::Duration,
 };
 
 use anyhow::bail;
@@ -47,11 +48,13 @@ impl Storage {
         if let Some(parent) = cfg.file.parent() {
             fs::create_dir_all(&parent).await?;
         }
-        let url = format!("sqlite://{}?mode=rwc", cfg.file.to_string_lossy());
-        let pool = sqlx::sqlite::SqlitePoolOptions::new()
-            .max_connections(5)
-            .connect(&url)
-            .await?;
+        let options = sqlx::sqlite::SqliteConnectOptions::new()
+            .filename(&cfg.file)
+            .create_if_missing(true)
+            .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal)
+            .busy_timeout(Duration::from_secs(60));
+        let pool = sqlx::SqlitePool::connect_with(options).await?;
+
         let selph = Self { pool };
         for migration in MIGRATIONS {
             selph.pool.execute(migration).await?;

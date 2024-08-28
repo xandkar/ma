@@ -99,7 +99,7 @@ impl Session {
     pub async fn fetch_msgs_all<'a>(
         &'a mut self,
         mailbox: &'a str,
-    ) -> Result<(Meta, impl Stream<Item = (u32, Vec<u8>)> + 'a)> {
+    ) -> Result<(Meta, impl Stream<Item = (u32, u32, Vec<u8>)> + 'a)> {
         self.fetch_msgs(mailbox, None).await
     }
 
@@ -108,7 +108,7 @@ impl Session {
         &'a mut self,
         mailbox: &'a str,
         initial_uid: u32,
-    ) -> Result<(Meta, impl Stream<Item = (u32, Vec<u8>)> + 'a)> {
+    ) -> Result<(Meta, impl Stream<Item = (u32, u32, Vec<u8>)> + 'a)> {
         self.fetch_msgs(mailbox, Some(initial_uid)).await
     }
 
@@ -117,7 +117,7 @@ impl Session {
         &'a mut self,
         mailbox: &'a str,
         beginning_with: Option<u32>,
-    ) -> Result<(Meta, impl Stream<Item = (u32, Vec<u8>)> + 'a)> {
+    ) -> Result<(Meta, impl Stream<Item = (u32, u32, Vec<u8>)> + 'a)> {
         if let Some(0) = beginning_with {
             return Err(Error::UidIsZero);
         }
@@ -135,7 +135,7 @@ impl Session {
             }
             result.ok().and_then(|f| {
                 f.uid.and_then(move |uid| {
-                    f.body().map(|body| (uid, body.to_vec()))
+                    f.body().map(|body| (uid, f.message, body.to_vec()))
                 })
             })
         });
@@ -150,6 +150,7 @@ async fn connect(account: &cfg::ImapAccount) -> Result<ImapSession> {
         port,
         user,
         pass,
+        ignore_mailboxes: _,
     } = account;
     tracing::debug!("Connecting ...");
     let tcp = TcpStream::connect((addr.as_str(), *port)).await?;

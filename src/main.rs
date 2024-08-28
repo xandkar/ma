@@ -10,10 +10,6 @@ struct Cli {
     #[clap(short, long, default_value = ".")]
     dir: PathBuf,
 
-    /// Specify log level.
-    #[clap(short, long = "log", default_value_t = tracing::Level::INFO)]
-    log_level: tracing::Level,
-
     #[clap(subcommand)]
     command: Cmd,
 }
@@ -38,7 +34,7 @@ async fn main() -> anyhow::Result<()> {
     human_panic_setup();
     let cli = Cli::parse();
     env::set_current_dir(&cli.dir)?;
-    ma::tracing_init(Some(cli.log_level))?;
+    let _logger_guard = ma::tracing::init().await?;
     tracing::info!(pwd = ?env::current_dir()?, ?cli, "Start");
     let cfg = ma::cfg::Cfg::read_or_init().await?;
     tracing::info!(?cfg, "Config");

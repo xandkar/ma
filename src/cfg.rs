@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     path::{Path, PathBuf},
 };
 
@@ -14,6 +14,7 @@ pub struct ImapAccount {
     pub port: u16,
     pub user: String,
     pub pass: String,
+    pub ignore_mailboxes: HashSet<String>,
 }
 
 impl std::fmt::Debug for ImapAccount {
@@ -23,6 +24,7 @@ impl std::fmt::Debug for ImapAccount {
             .field("port", &self.port)
             .field("user", &self.user)
             .field("pass", &"<XXXXX>")
+            .field("ignore_mailboxes", &self.ignore_mailboxes)
             .finish()
     }
 }
@@ -34,6 +36,7 @@ impl Default for ImapAccount {
             port: 993,
             user: String::new(),
             pass: String::new(),
+            ignore_mailboxes: HashSet::new(),
         }
     }
 }
