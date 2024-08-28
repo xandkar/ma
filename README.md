@@ -49,6 +49,7 @@ TODO
 - [ ] post-update hooks
       (Can be used for custom notifications, aggregate query reruns, etc.)
 - [ ] timeouts
+- [x] parallelize fetch
 - [ ] parallelize import/export
 - [ ] example analytics
   - [ ] `Received` based route trace graph
