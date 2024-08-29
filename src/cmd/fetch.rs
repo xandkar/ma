@@ -97,7 +97,7 @@ async fn fetch_account(
     all: bool,
     pb: ProgressBar,
 ) -> anyhow::Result<()> {
-    tracing::info!(?account, "Dump");
+    tracing::info!(?account, "Fetching.");
     let mut session = Session::new(account).await?;
     let mut mailboxes = session
         .list_mailboxes()
