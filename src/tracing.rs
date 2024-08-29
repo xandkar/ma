@@ -17,11 +17,15 @@ pub async fn init() -> anyhow::Result<Guard> {
         let hostname = PathBuf::from(hostname().await?);
         let filename_error = hostname.join("error.log");
         let filename_info = hostname.join("info.log");
+        let filename_debug = hostname.join("debug.log");
         let (writer_file_error, guard_error) = tracing_appender::non_blocking(
             tracing_appender::rolling::daily(&dir, filename_error),
         );
         let (writer_file_info, guard_info) = tracing_appender::non_blocking(
             tracing_appender::rolling::daily(&dir, filename_info),
+        );
+        let (writer_file_debug, guard_debug) = tracing_appender::non_blocking(
+            tracing_appender::rolling::daily(&dir, filename_debug),
         );
         let layer_file_error = fmt::Layer::new()
             .with_writer(writer_file_error)
@@ -45,11 +49,23 @@ pub async fn init() -> anyhow::Result<Guard> {
                 EnvFilter::from_default_env()
                     .add_directive(tracing::Level::INFO.into()),
             );
+        let layer_file_debug = fmt::Layer::new()
+            .with_writer(writer_file_debug)
+            .with_ansi(true)
+            .with_file(false)
+            .with_line_number(true)
+            .with_thread_ids(true)
+            .with_span_events(FmtSpan::CLOSE)
+            .with_filter(
+                EnvFilter::from_default_env()
+                    .add_directive(tracing::Level::DEBUG.into()),
+            );
         let subscriber = tracing_subscriber::registry()
             .with(layer_file_error)
-            .with(layer_file_info);
+            .with(layer_file_info)
+            .with(layer_file_debug);
         tracing::subscriber::set_global_default(subscriber)?;
-        vec![guard_error, guard_info]
+        vec![guard_error, guard_info, guard_debug]
     };
 
     let guard = Guard {
