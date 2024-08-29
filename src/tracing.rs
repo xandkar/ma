@@ -33,7 +33,7 @@ pub async fn init() -> anyhow::Result<Guard> {
             .with_file(false)
             .with_line_number(true)
             .with_thread_ids(true)
-            .with_span_events(FmtSpan::CLOSE)
+            // .with_span_events(FmtSpan::CLOSE)
             .with_filter(
                 EnvFilter::from_default_env()
                     .add_directive(tracing::Level::ERROR.into()),
@@ -44,7 +44,7 @@ pub async fn init() -> anyhow::Result<Guard> {
             .with_file(false)
             .with_line_number(true)
             .with_thread_ids(true)
-            .with_span_events(FmtSpan::CLOSE)
+            // .with_span_events(FmtSpan::CLOSE)
             .with_filter(
                 EnvFilter::from_default_env()
                     .add_directive(tracing::Level::INFO.into()),
