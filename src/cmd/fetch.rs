@@ -266,12 +266,35 @@ fn prog_sty_spin_fin() -> anyhow::Result<ProgressStyle> {
     Ok(sty)
 }
 
-fn truncate<S: AsRef<str>>(s: S, max: usize) -> String {
-    let s = s.as_ref();
-    // XXX Redundant iteration is cheaper than redundant allocation.
-    if s.chars().count() > max {
-        format!("{}...", s.chars().take(max).collect::<String>())
-    } else {
-        s.to_string()
+fn truncate<S: AsRef<str>>(s0: S, max: usize) -> String {
+    let mut s0 = s0.as_ref().chars().enumerate();
+    let mut s1 = String::new();
+    loop {
+        match s0.next() {
+            None => break,
+            Some((i, c)) if i < max => {
+                s1.push(c);
+            }
+            Some(_) => {
+                s1.push_str("...");
+                break;
+            }
+        }
+    }
+    s1
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn t_truncate() {
+        assert_eq!("...", truncate("abc", 0));
+        assert_eq!("a...", truncate("abc", 1));
+        assert_eq!("ab...", truncate("abc", 2));
+        assert_eq!("abc", truncate("abc", 3));
+        assert_eq!("abc", truncate("abc", 4));
+        assert_eq!("abc", truncate("abc", 5));
     }
 }
