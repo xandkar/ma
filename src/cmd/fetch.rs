@@ -249,7 +249,7 @@ fn prog_bar_spin(size: u64) -> anyhow::Result<ProgressBar> {
 
 macro_rules! BAR_TEMPLATE {
     () => {
-        "{bar:40.green} {percent:>3}% | {human_pos:>9} / {human_len:9} | {elapsed_precise} / {duration_precise} | {eta_precise} | {prefix}"
+        "{bar:40.green} {percent:>3}% | {human_pos:>9} / {human_len:9} | {duration_precise} - {elapsed_precise} = {eta_precise} | {prefix}"
     };
 }
 
