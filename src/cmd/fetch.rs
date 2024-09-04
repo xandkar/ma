@@ -174,11 +174,11 @@ async fn fetch_account(
             format!("{account_name:?} : {mailbox_status}")
         };
         pb.set_message(status_account_mailbox);
-        let last_seen_uid = db
+        let last_seen_uid: u32 = db
             .fetch_last_seen(account_name, &mailbox)
             .await?
-            .unwrap_or(1);
-        let first_uid = if all { 1 } else { last_seen_uid };
+            .unwrap_or(0);
+        let first_uid = if all { 1 } else { last_seen_uid + 1 };
         match session.fetch_msgs_from(&mailbox, first_uid).await {
             Err(error) => {
                 tracing::error!(
