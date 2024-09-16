@@ -165,10 +165,12 @@ async fn fetch_account(
         let exists = meta.exists;
         pb.inc_length(u64::from(exists));
     }
-    let m_total = mailboxes.len();
-    for (m, mailbox) in mailboxes.into_iter().enumerate() {
-        let status_mailbox =
-            format!("{:?} ({m} / {m_total})", truncate(&mailbox, 25));
+    let total_mailboxes = mailboxes.len();
+    for (mailbox_i, mailbox) in mailboxes.into_iter().enumerate() {
+        let status_mailbox = format!(
+            "{:?} ({mailbox_i} / {total_mailboxes})",
+            truncate(&mailbox, 25)
+        );
         let status_account_mailbox = {
             let mailbox_status = console::style(&status_mailbox).dim();
             format!("{account_name:?} : {mailbox_status}")
